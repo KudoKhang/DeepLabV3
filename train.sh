@@ -1,1 +1,0 @@
-python train.py --root dataset/CeFiLaIb --batch 32 --num-workers 8

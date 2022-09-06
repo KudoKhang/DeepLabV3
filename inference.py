@@ -1,4 +1,5 @@
 from networks import *
+select_classes = ['background', 'hair']
 
 class DeepLabPredict:
     def __init__(self, pretrained='checkpoints/lastest_model.pth'):
@@ -20,14 +21,6 @@ class DeepLabPredict:
         x2 = max(np.where(threshold == 255)[1])
         return x1, y1, x2, y2
 
-    def visualize(self, img, label, color = (0, 255, 0)):
-        if color:
-            label[:,:,0][np.where(label[:,:,0]==255)] = color[0]
-            label[:,:,1][np.where(label[:,:,1]==255)] = color[1]
-            label[:,:,2][np.where(label[:,:,2]==255)] = color[2]
-        # TODO: add color only hair via mask
-        return cv2.addWeighted(img, 0.6, label, 0.4, 0)
-
     def check_type(self, img_path):
         if type(img_path) == str:
             if img_path.endswith(('.jpg', '.png', '.jpeg')):
@@ -38,7 +31,7 @@ class DeepLabPredict:
             img = img_path
         return img
 
-    def predict(self, image, visualize=True):
+    def predict(self, image):
         image = self.check_type(image)
         image_original = image.copy()
         h, w = image.shape[:2]
@@ -62,38 +55,10 @@ class DeepLabPredict:
         pred_mask = pred_mask.astype('uint8')
         final = pred_mask[y1:y2, x1:x2]
         final = cv2.resize(final, (w, h))
-        if visualize:
-            image_visualize = self.visualize(image_original, final.copy())
-            return image_visualize
-            # finall = np.hstack([image_original, final, image_visualize])
-            # cv2.imshow('result', finall)
-            # cv2.waitKey(0)
         return final
 
-#------#------#------#------#------#------#------#------#------#------#------#------
-def webcam():
-    print("Using webcam, press [q] to exit, press [s] to save")
-    cap = cv2.VideoCapture(0)
-    cap.set(3, 1920)
-    cap.set(4, 1080)
-    with alive_bar(theme='musical', length=200) as bar:
-        while True:
-            _, frame = cap.read()
-            frame = cv2.flip(frame, 1)
-            start = time.time()
-            frame = Deeplab.predict(frame)
-            fps = round(1 / (time.time() - start), 2)
-            cv2.putText(frame, "FPS : " + str(fps), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
-            cv2.imshow('Prediction', frame + 30)
-            k = cv2.waitKey(20) & 0xFF
-            if k == ord('s'):
-                os.makedirs('results/', exist_ok=True)
-                cv2.imwrite('results/' + str(time.time()) + '.jpg', frame)
-            if k == ord('q'):
-                break
-            bar()
-
 if __name__ == '__main__':
-    image = 'dataset/Figaro_1k/test/images/805.jpg'
     Deeplab = DeepLabPredict()
-    webcam()
+    mask = Deeplab.predict('7.jpg')
+    cv2.imshow('t', mask)
+    cv2.waitKey(0)
