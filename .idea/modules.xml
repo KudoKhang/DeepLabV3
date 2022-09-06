@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../BiSeNet/.idea/BiseNet.iml" filepath="$PROJECT_DIR$/../BiSeNet/.idea/BiseNet.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/DeepLabV3.iml" filepath="$PROJECT_DIR$/.idea/DeepLabV3.iml" />
     </modules>
   </component>

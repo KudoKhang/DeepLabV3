@@ -141,3 +141,6 @@ cython_debug/
 checkpoints/
 dataset/
 .gitignore
+.idea
+*.DS_Store
+__MACOSX/

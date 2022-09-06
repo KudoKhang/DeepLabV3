@@ -50,7 +50,7 @@ train_dataloader = DataLoader(
         drop_last=True
     )
 
-val_dataloader = DataLoader(
+valid_dataloader = DataLoader(
         val_dataset,
         batch_size=1,
         pin_memory=True,
@@ -97,9 +97,9 @@ def training():
     best_iou_score = 0.0
     train_logs_list, valid_logs_list = [], []
 
-    for i in range(0, EPOCHS):
+    for epoch in range(0, EPOCHS):
         # Perform training & validation
-        print('\nEpoch: {}'.format(i))
+        print('\nEpoch: {}'.format(epoch))
         train_logs = train_epoch.run(train_dataloader)
         valid_logs = valid_epoch.run(valid_dataloader)
         train_logs_list.append(train_logs)

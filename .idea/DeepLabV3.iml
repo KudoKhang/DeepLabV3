@@ -7,6 +7,5 @@
     </content>
     <orderEntry type="jdk" jdkName="Python 3.9 (semantic_segmentation)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="BiseNet" />
   </component>
 </module>
