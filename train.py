@@ -94,6 +94,7 @@ valid_epoch = smp.utils.train.ValidEpoch(
 # Loop for training
 torch.cuda.empty_cache()
 def training():
+    wandb.init(project='Hair_segmentation_DeepLab', entity='khanghn')
     best_iou_score = 0.0
     train_logs_list, valid_logs_list = [], []
 
@@ -123,6 +124,11 @@ def training():
             torch.save(states, f'{args.pretrained}/best_model.pth')
         else:
             print('---Save Failed---')
+
+        wandb.log({"valid_IoU: ": valid_logs['iou_score'],
+                    "train_IoU: ": train_logs['iou_score'],
+                    "valid_Loss: ": valid_logs['dice_loss'],
+                    "train_logs: ": train_logs['dice_loss']})
 
 # use "if __name__ == '__main__' to fix error Parallel"
 # https://stackoverflow.com/questions/64772335/pytorch-w-parallelnative-cpp206

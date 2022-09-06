@@ -1,68 +1,99 @@
 from networks import *
-args = get_args()
 
-# Config hyperparameter
-select_classes = ['background', 'hair']
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-NUM_CLASSES = args.num_classes
-ROOT = args.root
-model = smp.DeepLabV3Plus(
-    encoder_name='resnet101',
-    encoder_weights='imagenet',
-    classes=NUM_CLASSES,
-    activation='sigmoid',
-)
-preprocessing_fn = get_preprocessing_fn('resnet101')
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-checkpoint = torch.load(os.path.join('checkpoints', 'lastest_model.pth'), map_location=DEVICE)
-model.load_state_dict(checkpoint['state_dict'])
-start_epoch = checkpoint['epoch']
-miou = checkpoint['iou']
+class DeepLabPredict:
+    def __init__(self, pretrained='checkpoints/lastest_model.pth'):
+        self.DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model = smp.DeepLabV3Plus(encoder_name='resnet101', encoder_weights='imagenet',
+                                   classes=2, activation='sigmoid')
+        self.preprocessing_fn = smp.encoders.get_preprocessing_fn('resnet101')
+        checkpoint = torch.load(pretrained, map_location=self.DEVICE)
+        self.model.load_state_dict(checkpoint['state_dict'])
+        self.model.to(self.DEVICE)
+        self.model.eval()
 
-model.to(DEVICE)
-model.eval()
+    def get_coord_original(self, image):
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, threshold = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+        y1 = min(np.where(threshold == 255)[0])
+        y2 = max(np.where(threshold == 255)[0])
+        x1 = min(np.where(threshold == 255)[1])
+        x2 = max(np.where(threshold == 255)[1])
+        return x1, y1, x2, y2
 
-test_dataset = BuildingsDataset(path_dataset=ROOT, mode='test',
-                                 augmentation=get_validation_augmentation(),
-                                 preprocessing=get_preprocessing(preprocessing_fn))
+    def visualize(self, img, label, color = (0, 255, 0)):
+        if color:
+            label[:,:,0][np.where(label[:,:,0]==255)] = color[0]
+            label[:,:,1][np.where(label[:,:,1]==255)] = color[1]
+            label[:,:,2][np.where(label[:,:,2]==255)] = color[2]
+        # TODO: add color only hair via mask
+        return cv2.addWeighted(img, 0.6, label, 0.4, 0)
 
-test_dataloader = DataLoader(test_dataset)
+    def check_type(self, img_path):
+        if type(img_path) == str:
+            if img_path.endswith(('.jpg', '.png', '.jpeg')):
+                img = cv2.imread(img_path)
+            else:
+                raise Exception("Please input a image path")
+        elif type(img_path) == np.ndarray:
+            img = img_path
+        return img
 
-# test dataset for visualization (without preprocessing transformations)
-test_dataset_vis = BuildingsDataset(path_dataset=ROOT, mode='test',
-                                 augmentation=get_validation_augmentation())
+    def predict(self, image, visualize=True):
+        image = self.check_type(image)
+        image_original = image.copy()
+        h, w = image.shape[:2]
 
-# id = 1
-# image, gt_mask = test_dataset[id]
-# image_vis = crop_image(test_dataset_vis[id][0].astype('uint8'))
-# x_tensor = torch.from_numpy(image).to(DEVICE).unsqueeze(0)
-# # Predict test image
-# pred_mask = model(x_tensor)
-# pred_mask = pred_mask.detach().squeeze().cpu().numpy()
-# # Convert pred_mask from `CHW` format to `HWC` format
-# pred_mask = np.transpose(pred_mask,(1,2,0))
-# # Get prediction channel corresponding to building
-# pred_building_heatmap = pred_mask[:,:,select_classes.index('hair')]
-# pred_mask = colour_code_segmentation(reverse_one_hot(pred_mask), [[0,0,0], [255,255,255]])
-# pred_mask = crop_image(pred_mask)
-# # Convert gt_mask from `CHW` format to `HWC` format
-# gt_mask = np.transpose(gt_mask,(1,2,0))
-# gt_mask = crop_image(colour_code_segmentation(reverse_one_hot(gt_mask), [[0,0,0], [255,255,255]]))
-# cv2.imwrite(os.path.join(f"sample_pred_{id}.png"), np.hstack([image_vis, gt_mask, pred_mask])[:,:,::-1])
+        # Padding original image to 1536*1536 (size input must divisible by 32)
+        image = get_validation_augmentation()(image=image)['image']
 
-# Inference with image
-image = cv2.imread('dataset/Figaro_1k/test/images/187.jpg')
-image = get_validation_augmentation()(image=image)['image']
-sample = get_preprocessing(preprocessing_fn)(image=image)
-image = sample['image']
-x_tensor = torch.from_numpy(image).to(DEVICE).unsqueeze(0)
-# Predict test image
-pred_mask = model(x_tensor)
-pred_mask = pred_mask.detach().squeeze().cpu().numpy()
-# Convert pred_mask from `CHW` format to `HWC` format
-pred_mask = np.transpose(pred_mask,(1,2,0))
-pred_building_heatmap = pred_mask[:,:,select_classes.index('hair')]
-pred_mask = colour_code_segmentation(reverse_one_hot(pred_mask), [[0,0,0], [255,255,255]])
-# pred_mask = crop_image(pred_mask)
+        x1, y1, x2, y2 = self.get_coord_original(image)
 
-print('pause')
+        # Processing input: convert tensor, normalize...
+        sample = get_preprocessing(self.preprocessing_fn)(image=image)
+        image = sample['image']
+        x_tensor = torch.from_numpy(image).to(self.DEVICE).unsqueeze(0)
+        # Predict test image
+        pred_mask = self.model(x_tensor)
+        pred_mask = pred_mask.detach().squeeze().cpu().numpy()
+        # Convert pred_mask from `CHW` format to `HWC` format
+        pred_mask = np.transpose(pred_mask, (1, 2, 0))
+        pred_building_heatmap = pred_mask[:, :, select_classes.index('hair')]
+        pred_mask = colour_code_segmentation(reverse_one_hot(pred_mask), [[0, 0, 0], [255, 255, 255]])
+        pred_mask = pred_mask.astype('uint8')
+        final = pred_mask[y1:y2, x1:x2]
+        final = cv2.resize(final, (w, h))
+        if visualize:
+            image_visualize = self.visualize(image_original, final.copy())
+            return image_visualize
+            # finall = np.hstack([image_original, final, image_visualize])
+            # cv2.imshow('result', finall)
+            # cv2.waitKey(0)
+        return final
+
+#------#------#------#------#------#------#------#------#------#------#------#------
+def webcam():
+    print("Using webcam, press [q] to exit, press [s] to save")
+    cap = cv2.VideoCapture(0)
+    cap.set(3, 1920)
+    cap.set(4, 1080)
+    with alive_bar(theme='musical', length=200) as bar:
+        while True:
+            _, frame = cap.read()
+            frame = cv2.flip(frame, 1)
+            start = time.time()
+            frame = Deeplab.predict(frame)
+            fps = round(1 / (time.time() - start), 2)
+            cv2.putText(frame, "FPS : " + str(fps), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50, 170, 50), 2)
+            cv2.imshow('Prediction', frame + 30)
+            k = cv2.waitKey(20) & 0xFF
+            if k == ord('s'):
+                os.makedirs('results/', exist_ok=True)
+                cv2.imwrite('results/' + str(time.time()) + '.jpg', frame)
+            if k == ord('q'):
+                break
+            bar()
+
+if __name__ == '__main__':
+    image = 'dataset/Figaro_1k/test/images/805.jpg'
+    Deeplab = DeepLabPredict()
+    webcam()

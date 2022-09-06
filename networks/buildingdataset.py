@@ -51,8 +51,8 @@ class BuildingsDataset(torch.utils.data.Dataset):
     def check_size(self, data, label):
         h, w = data.shape[:2]
         if h < 256 or w < 256:
-            data = cv2.resize(data, (w*2, h*2))
-            label = cv2.resize(label, (w*2, h*2))
+            data = cv2.resize(data, (w*3, h*3))
+            label = cv2.resize(label, (w*3, h*3))
 
         return data, label
 

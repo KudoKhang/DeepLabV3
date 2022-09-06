@@ -1,2 +1,4 @@
 segmentation_models_pytorch
 albumentations
+wandb
+torch

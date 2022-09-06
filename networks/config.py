@@ -1,5 +1,7 @@
 from .libs import *
 
+select_classes = ['background', 'hair']
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=str, default="dataset/Figaro_1k/", help="Path to dataset")
