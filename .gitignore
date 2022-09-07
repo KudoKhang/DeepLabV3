@@ -144,3 +144,4 @@ dataset/
 .idea
 *.DS_Store
 __MACOSX/
+wandb/

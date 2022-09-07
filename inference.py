@@ -1,11 +1,11 @@
 from networks import *
 
 class DeepLabPredict:
-    def __init__(self, pretrained='checkpoints/lastest_model.pth'):
+    def __init__(self, pretrained='checkpoints/lastest_model.pth', ENCODER_NAME='resnet50'):
         self.DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = smp.DeepLabV3Plus(encoder_name='resnet101', encoder_weights='imagenet',
+        self.model = smp.DeepLabV3Plus(encoder_name=ENCODER_NAME, encoder_weights='imagenet',
                                    classes=2, activation='sigmoid')
-        self.preprocessing_fn = smp.encoders.get_preprocessing_fn('resnet101')
+        self.preprocessing_fn = smp.encoders.get_preprocessing_fn(ENCODER_NAME)
         checkpoint = torch.load(pretrained, map_location=self.DEVICE)
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.to(self.DEVICE)
@@ -64,10 +64,10 @@ class DeepLabPredict:
         final = cv2.resize(final, (w, h))
         if visualize:
             image_visualize = self.visualize(image_original, final.copy())
-            return image_visualize
             # finall = np.hstack([image_original, final, image_visualize])
-            # cv2.imshow('result', finall)
+            # cv2.imshow('DeepLabV3 Predict', finall)
             # cv2.waitKey(0)
+            return image_visualize
         return final
 
 #------#------#------#------#------#------#------#------#------#------#------#------
@@ -94,6 +94,6 @@ def webcam():
             bar()
 
 if __name__ == '__main__':
-    image = 'dataset/Figaro_1k/test/images/805.jpg'
     Deeplab = DeepLabPredict()
+    # image = Deeplab.predict('dataset/Figaro_1k_png/test/images/805.jpg')
     webcam()

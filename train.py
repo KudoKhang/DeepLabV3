@@ -1,3 +1,5 @@
+import segmentation_models_pytorch.utils.metrics
+
 from networks import *
 args = get_args()
 
@@ -10,11 +12,11 @@ NUM_CLASSES = args.num_classes
 ROOT = args.root
 start_epoch = 0
 max_miou = 0
-
+ENCODER_NAME = 'resnet101'
 print(f"Device using: {DEVICE}")
 
 model = smp.DeepLabV3Plus(
-    encoder_name='resnet101',
+    encoder_name=ENCODER_NAME,
     encoder_weights='imagenet',
     classes=NUM_CLASSES,
     activation='sigmoid',
@@ -30,7 +32,7 @@ if os.path.exists(os.path.join(args.pretrained, 'lastest_model.pth')):
     miou = checkpoint['iou']
     print('Resume training from ---{}--- have mIoU = {}, start at epoch: {} \n'.format(args.pretrained, miou, start_epoch))
 
-preprocessing_fn = get_preprocessing_fn('resnet101')
+preprocessing_fn = get_preprocessing_fn(ENCODER_NAME)
 
 # Dataloader for train
 train_dataset = BuildingsDataset(path_dataset=ROOT, mode='train',
@@ -64,6 +66,7 @@ loss = smp.utils.losses.DiceLoss()
 # define metrics
 metrics = [
     smp.utils.metrics.IoU(threshold=0.5),
+    smp.utils.metrics.Fscore()
 ]
 # define optimizer
 optimizer = torch.optim.Adam([
@@ -94,7 +97,7 @@ valid_epoch = smp.utils.train.ValidEpoch(
 # Loop for training
 torch.cuda.empty_cache()
 def training():
-    wandb.init(project='Hair_segmentation_DeepLab', entity='khanghn')
+    wandb.init(project='Hair_segmentation_DeepLab1', entity='khanghn')
     best_iou_score = 0.0
     train_logs_list, valid_logs_list = [], []
 
