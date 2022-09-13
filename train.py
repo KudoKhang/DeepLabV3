@@ -1,5 +1,5 @@
 import segmentation_models_pytorch.utils.metrics
-
+from k_eval import *
 from networks import *
 args = get_args()
 
@@ -10,10 +10,11 @@ BATCH_SIZE = args.batch
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 NUM_CLASSES = args.num_classes
 ROOT = args.root
-start_epoch = 0
-max_miou = 0
-ENCODER_NAME = 'resnet101'
+ENCODER_NAME = args.backbone
+VALIDATION_STEP = args.validation_step
 print(f"Device using: {DEVICE}")
+start_epoch = 0
+max_f1score = 0
 
 model = smp.DeepLabV3Plus(
     encoder_name=ENCODER_NAME,
@@ -30,7 +31,8 @@ if os.path.exists(os.path.join(args.pretrained, 'lastest_model.pth')):
     model.load_state_dict(checkpoint['state_dict'])
     start_epoch = checkpoint['epoch']
     miou = checkpoint['iou']
-    print('Resume training from ---{}--- have mIoU = {}, start at epoch: {} \n'.format(args.pretrained, miou, start_epoch))
+    f1score = checkpoint['f1score']
+    print('Resume training from ---{}--- have mIoU = {} F1Score = {}, start at epoch: {} \n'.format(args.pretrained, miou, f1score, start_epoch))
 
 preprocessing_fn = get_preprocessing_fn(ENCODER_NAME)
 
@@ -39,9 +41,6 @@ train_dataset = BuildingsDataset(path_dataset=ROOT, mode='train',
                                  augmentation=get_training_augmentation(),
                                  preprocessing=get_preprocessing(preprocessing_fn))
 
-val_dataset = BuildingsDataset(path_dataset=ROOT, mode='val',
-                                 augmentation=get_validation_augmentation(),
-                                 preprocessing=get_preprocessing(preprocessing_fn))
 
 train_dataloader = DataLoader(
         train_dataset,
@@ -52,14 +51,6 @@ train_dataloader = DataLoader(
         drop_last=True
     )
 
-valid_dataloader = DataLoader(
-        val_dataset,
-        batch_size=1,
-        pin_memory=True,
-        num_workers=args.num_workers,
-        shuffle=False,
-        drop_last=True
-    )
 
 # define loss function
 loss = smp.utils.losses.DiceLoss()
@@ -86,28 +77,17 @@ train_epoch = smp.utils.train.TrainEpoch(
     verbose=True,
 )
 
-valid_epoch = smp.utils.train.ValidEpoch(
-    model,
-    loss=loss,
-    metrics=metrics,
-    device=DEVICE,
-    verbose=True,
-)
-
 # Loop for training
 torch.cuda.empty_cache()
 def training():
     wandb.init(project='Hair_segmentation_DeepLab1', entity='khanghn')
-    best_iou_score = 0.0
-    train_logs_list, valid_logs_list = [], []
+    train_logs_list = []
 
-    for epoch in range(0, EPOCHS):
+    for epoch in range(start_epoch, EPOCHS):
         # Perform training & validation
         print('\nEpoch: {}'.format(epoch))
         train_logs = train_epoch.run(train_dataloader)
-        valid_logs = valid_epoch.run(valid_dataloader)
         train_logs_list.append(train_logs)
-        valid_logs_list.append(valid_logs)
 
         if not os.path.exists(args.pretrained):
             os.makedirs(args.pretrained, exist_ok=True)
@@ -116,22 +96,31 @@ def training():
         states = {
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
-            'iou': valid_logs['iou_score']
+            'iou': train_logs['iou_score'],
+            'f1score': train_logs['f1score']
         }
         torch.save(states, f'{args.pretrained}/lastest_model.pth')
 
-        # Save model if a better val IoU score is obtained
-        if best_iou_score < valid_logs['iou_score']:
-            best_iou_score = valid_logs['iou_score']
-            print('---Save best model with mIoU = {}--- \n'.format(best_iou_score))
-            torch.save(states, f'{args.pretrained}/best_model.pth')
-        else:
-            print('---Save Failed---')
+        # Validation
+        if (epoch + 1) % VALIDATION_STEP == 0:
+            eval = Evaluation(pretrained=f'{args.pretrained}/lastest_model.pth', ENCODER_NAME=ENCODER_NAME, ROOT=ROOT)
+            Accucracy, IoU, F1_Score = eval()
 
-        wandb.log({"valid_IoU: ": valid_logs['iou_score'],
-                    "train_IoU: ": train_logs['iou_score'],
-                    "valid_Loss: ": valid_logs['dice_loss'],
-                    "train_logs: ": train_logs['dice_loss']})
+            # Save model if a better val IoU score is obtained
+            if max_f1score < F1_Score:
+                max_f1score = F1_Score
+                print('---Save best model with F1Score = {}--- \n'.format(max_f1score))
+                torch.save(states, f'{args.pretrained}/best_model.pth')
+            else:
+                print('---Save Failed---')
+
+        wandb.log({"train_IoU": train_logs['iou_score'],
+                    "train_FScore": train_logs['fscore'],
+                    "train_logs": train_logs['dice_loss'],
+                    "Valid_Accuracy": Accucracy,
+                    "Valida_IoU": IoU,
+                    "Valida_F1Score": F1_Score
+                   })
 
 # use "if __name__ == '__main__' to fix error Parallel"
 # https://stackoverflow.com/questions/64772335/pytorch-w-parallelnative-cpp206
