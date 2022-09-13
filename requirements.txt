@@ -2,3 +2,9 @@ segmentation_models_pytorch
 albumentations
 wandb
 torch
+pandas
+torch
+opencv-python
+numpy
+pillow
+seaborn
