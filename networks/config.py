@@ -11,6 +11,8 @@ def get_args():
     parser.add_argument("--pretrained", type=str, default='checkpoints/')
     parser.add_argument("--lr", type=float, default=0.0001)
     parser.add_argument("--num-workers", type=int, default=1)
+    parser.add_argument("--backbone", type=str, default='resnet18')
+    parser.add_argument("--validation_step", type=int, default=10)
     args = parser.parse_args()
     # print("           ⊱ ──────ஓ๑♡๑ஓ ────── ⊰")
     # print("🎵 hhey, arguments are here if you need to check 🎵")
