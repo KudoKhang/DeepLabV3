@@ -2,7 +2,6 @@ from networks import *
 args = get_args()
 
 # Config hyperparameter
-LEARNING_RATE = args.lr
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 NUM_CLASSES = args.num_classes
 ROOT = args.root
@@ -58,9 +57,7 @@ valid_epoch = smp.utils.train.ValidEpoch(
     verbose=True,
 )
 
-# Loop for training
-torch.cuda.empty_cache()
-def training():
+def eval():
     valid_logs_list = []
     valid_logs = valid_epoch.run(valid_dataloader)
     valid_logs_list.append(valid_logs)
@@ -69,4 +66,4 @@ def training():
 # use "if __name__ == '__main__' to fix error Parallel"
 # https://stackoverflow.com/questions/64772335/pytorch-w-parallelnative-cpp206
 if __name__ == '__main__':
-    training()
+    eval()
